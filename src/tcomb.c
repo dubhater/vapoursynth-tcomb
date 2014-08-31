@@ -37,6 +37,23 @@
 #define max4(a,b,c,d) VSMAX(VSMAX(a,b),VSMAX(c,d))
 
 
+#ifdef HAVE_ASM
+// Implemented in tcomb.asm
+extern void tcomb_buildFinalMask_sse2(const uint8_t *s1p, const uint8_t *s2p, const uint8_t *m1p, uint8_t *dstp, intptr_t stride, intptr_t width, intptr_t height, intptr_t thresh);
+extern void tcomb_absDiff_sse2( const uint8_t *srcp1, const uint8_t *srcp2, uint8_t *dstp, intptr_t stride, intptr_t width, intptr_t height);
+extern void tcomb_absDiffAndMinMask_sse2( const uint8_t *srcp1, const uint8_t *srcp2, uint8_t *dstp, intptr_t stride, intptr_t width, intptr_t height);
+extern void tcomb_absDiffAndMinMaskThresh_sse2( const uint8_t *srcp1, const uint8_t *srcp2, uint8_t *dstp, intptr_t stride, intptr_t width, intptr_t height, intptr_t thresh);
+extern void tcomb_checkOscillation5_sse2( const uint8_t *p2p, const uint8_t *p1p, const uint8_t *s1p, const uint8_t *n1p, const uint8_t *n2p, uint8_t *dstp, intptr_t stride, intptr_t width, intptr_t height, intptr_t thresh);
+extern void tcomb_calcAverages_sse2( const uint8_t *s1p, const uint8_t *s2p, uint8_t *dstp, intptr_t stride, intptr_t width, intptr_t height);
+extern void tcomb_checkAvgOscCorrelation_sse2( const uint8_t *s1p, const uint8_t *s2p, const uint8_t *s3p, const uint8_t *s4p, uint8_t *dstp, intptr_t stride, intptr_t width, intptr_t height, intptr_t thresh);
+extern void tcomb_or3Masks_sse2( const uint8_t *s1p, const uint8_t *s2p, const uint8_t *s3p, uint8_t *dstp, intptr_t stride, intptr_t width, intptr_t height);
+extern void tcomb_orAndMasks_sse2( const uint8_t *s1p, const uint8_t *s2p, uint8_t *dstp, intptr_t stride, intptr_t width, intptr_t height);
+extern void tcomb_andMasks_sse2( const uint8_t *s1p, const uint8_t *s2p, uint8_t *dstp, intptr_t stride, intptr_t width, intptr_t height);
+extern void tcomb_checkSceneChange_sse2( const uint8_t *s1p, const uint8_t *s2p, intptr_t height, intptr_t width, intptr_t stride, int64_t *diffp);
+extern void tcomb_verticalBlur3_sse2( const uint8_t *srcp, uint8_t *dstp, intptr_t stride, intptr_t width, intptr_t height);
+#endif
+
+
 typedef struct {
     VSNodeRef *node;
     const VSVideoInfo *vi;
@@ -259,6 +276,9 @@ void buildFinalMask(const VSFrameRef *s1, const VSFrameRef *s2, const VSFrameRef
 
         const int thresh = b == 0 ? d->othreshl : d->othreshc;
 
+#ifdef HAVE_ASM
+        tcomb_buildFinalMask_sse2(s1p, s2p, m1p, dstp, s1_pitch, width, height, thresh);
+#else
         for (int y = 0; y < height; ++y) {
             for (int x = 0; x < width; ++x) {
                 if (m1p[x] && abs(s1p[x] - s2p[x]) < thresh)
@@ -271,6 +291,7 @@ void buildFinalMask(const VSFrameRef *s1, const VSFrameRef *s2, const VSFrameRef
             s2p += s2_pitch;
             dstp += dst_pitch;
         }
+#endif
     }
 }
 
@@ -320,6 +341,9 @@ void absDiff(const VSFrameRef *src1, const VSFrameRef *src2, VSFrameRef *dst, co
     const int src2_pitch = vsapi->getStride(src2, 0);
     const int dst_pitch = vsapi->getStride(dst, 0);
 
+#ifdef HAVE_ASM
+    tcomb_absDiff_sse2(srcp1, srcp2, dstp, src1_pitch, width, height);
+#else
     for (int y = 0; y < height; ++y) {
         for (int x = 0; x < width; ++x) {
             dstp[x] = abs(srcp1[x] - srcp2[x]);
@@ -328,6 +352,7 @@ void absDiff(const VSFrameRef *src1, const VSFrameRef *src2, VSFrameRef *dst, co
         srcp2 += src2_pitch;
         dstp += dst_pitch;
     }
+#endif
 }
 
 
@@ -342,6 +367,9 @@ void absDiffAndMinMask(const VSFrameRef *src1, const VSFrameRef *src2, VSFrameRe
     const int src2_pitch = vsapi->getStride(src2, 0);
     const int dst_pitch = vsapi->getStride(dst, 0);
 
+#ifdef HAVE_ASM
+    tcomb_absDiffAndMinMask_sse2(srcp1, srcp2, dstp, src1_pitch, width, height);
+#else
     for (int y = 0; y < height; ++y) {
         for (int x = 0; x < width; ++x) {
             const int diff = abs(srcp1[x] - srcp2[x]);
@@ -352,6 +380,7 @@ void absDiffAndMinMask(const VSFrameRef *src1, const VSFrameRef *src2, VSFrameRe
         srcp2 += src2_pitch;
         dstp += dst_pitch;
     }
+#endif
 }
 
 
@@ -369,6 +398,9 @@ void absDiffAndMinMaskThresh(const VSFrameRef *src1, const VSFrameRef *src2, VSF
 
     const int thresh = d->fthreshl;
 
+#ifdef HAVE_ASM
+    tcomb_absDiffAndMinMaskThresh_sse2(srcp1, srcp2, dstp, src1_pitch, width, height, thresh);
+#else
     for (int y = 0; y < height; ++y) {
         for (int x = 0; x < width; ++x) {
             const int diff = abs(srcp1[x] - srcp2[x]);
@@ -383,6 +415,7 @@ void absDiffAndMinMaskThresh(const VSFrameRef *src1, const VSFrameRef *src2, VSF
         srcp2 += src2_pitch;
         dstp += dst_pitch;
     }
+#endif
 }
 
 
@@ -407,6 +440,9 @@ void checkOscillation5(const VSFrameRef *p2, const VSFrameRef *p1, const VSFrame
 
         const int thresh = b == 0 ? d->othreshl : d->othreshc;
 
+#ifdef HAVE_ASM
+        tcomb_checkOscillation5_sse2(p2p, p1p, s1p, n1p, n2p, dstp, p2_pitch, width, height, thresh);
+#else
         for (int y = 0; y < height; ++y) {
             for (int x = 0; x < width; ++x) {
                 const int min31 = min3(p2p[x], s1p[x], n2p[x]);
@@ -426,6 +462,7 @@ void checkOscillation5(const VSFrameRef *p2, const VSFrameRef *p1, const VSFrame
             n2p += n2_pitch;
             dstp += dst_pitch;
         }
+#endif
     }
 }
 
@@ -442,6 +479,9 @@ void calcAverages(const VSFrameRef *s1, const VSFrameRef *s2, VSFrameRef *dst, T
         uint8_t *dstp = vsapi->getWritePtr(dst, b);
         const int dst_pitch = vsapi->getStride(dst, b);
 
+#ifdef HAVE_ASM
+        tcomb_calcAverages_sse2(s1p, s2p, dstp, s1_pitch, width, height);
+#else
         for (int y = 0; y < height; ++y) {
             for (int x = 0; x < width; ++x)
                 dstp[x] = (s1p[x] + s2p[x] + 1) / 2;
@@ -449,6 +489,7 @@ void calcAverages(const VSFrameRef *s1, const VSFrameRef *s2, VSFrameRef *dst, T
             s2p += s2_pitch;
             dstp += dst_pitch;
         }
+#endif
     }
 }
 
@@ -472,6 +513,9 @@ void checkAvgOscCorrelation(const VSFrameRef *s1, const VSFrameRef *s2, const VS
 
         const int thresh = b == 0 ? d->fthreshl : d->fthreshc;
 
+#ifdef HAVE_ASM
+        tcomb_checkAvgOscCorrelation_sse2(s1p, s2p, s3p, s4p, dstp, s1_pitch, width, height, thresh);
+#else
         for (int y = 0; y < height; ++y) {
             for (int x = 0; x < width; ++x) {
                 if (max4(s1p[x], s2p[x], s3p[x], s4p[x]) -
@@ -484,6 +528,7 @@ void checkAvgOscCorrelation(const VSFrameRef *s1, const VSFrameRef *s2, const VS
             s4p += s4_pitch;
             dstp += dst_pitch;
         }
+#endif
     }
 }
 
@@ -503,6 +548,9 @@ void or3Masks(const VSFrameRef *s1, const VSFrameRef *s2, const VSFrameRef *s3,
         uint8_t *dstp = vsapi->getWritePtr(dst, b);
         const int dst_pitch = vsapi->getStride(dst, b);
 
+#ifdef HAVE_ASM
+        tcomb_or3Masks_sse2(s1p, s2p, s3p, dstp, s1_pitch, width, height);
+#else
         for (int y = 0; y < height; ++y) {
             for (int x = 0; x < width; ++x) {
                 dstp[x] = (s1p[x] | s2p[x] | s3p[x]);
@@ -512,6 +560,7 @@ void or3Masks(const VSFrameRef *s1, const VSFrameRef *s2, const VSFrameRef *s3,
             s3p += s3_pitch;
             dstp += dst_pitch;
         }
+#endif
     }
 }
 
@@ -527,6 +576,9 @@ void orAndMasks(const VSFrameRef *s1, const VSFrameRef *s2, VSFrameRef *dst, con
     uint8_t *dstp = vsapi->getWritePtr(dst, 0);
     const int dst_pitch = vsapi->getStride(dst, 0);
 
+#ifdef HAVE_ASM
+    tcomb_orAndMasks_sse2(s1p, s2p, dstp, s1_pitch, width, height);
+#else
     for (int y = 0; y < height; ++y) {
         for (int x = 0; x < width; ++x) {
             dstp[x] |= (s1p[x] & s2p[x]);
@@ -535,6 +587,7 @@ void orAndMasks(const VSFrameRef *s1, const VSFrameRef *s2, VSFrameRef *dst, con
         s2p += s2_pitch;
         dstp += dst_pitch;
     }
+#endif
 }
 
 
@@ -549,6 +602,9 @@ void andMasks(const VSFrameRef *s1, const VSFrameRef *s2, VSFrameRef *dst, const
     uint8_t *dstp = vsapi->getWritePtr(dst, 0);
     const int dst_pitch = vsapi->getStride(dst, 0);
 
+#ifdef HAVE_ASM
+    tcomb_andMasks_sse2(s1p, s2p, dstp, s1_pitch, width, height);
+#else
     for (int y = 0; y < height; ++y) {
         for (int x = 0; x < width; ++x) {
             dstp[x] = (s1p[x] & s2p[x]);
@@ -557,6 +613,7 @@ void andMasks(const VSFrameRef *s1, const VSFrameRef *s2, VSFrameRef *dst, const
         s2p += s2_pitch;
         dstp += dst_pitch;
     }
+#endif
 }
 
 
@@ -574,6 +631,9 @@ int checkSceneChange(const VSFrameRef *s1, const VSFrameRef *s2, TCombData *d, c
 
     int64_t diff = 0;
 
+#ifdef HAVE_ASM
+    tcomb_checkSceneChange_sse2(s1p, s2p, height, width, s1_pitch, &diff);
+#else
     for (int y = 0; y < height; ++y) {
         for (int x = 0; x < width; x += 4) {
             diff += abs(s1p[x + 0] - s2p[x + 0]);
@@ -584,6 +644,7 @@ int checkSceneChange(const VSFrameRef *s1, const VSFrameRef *s2, TCombData *d, c
         s1p += s1_pitch;
         s2p += s2_pitch;
     }
+#endif
 
     if (diff > d->diffmaxsc)
         return 1;
@@ -601,6 +662,9 @@ void VerticalBlur3(const VSFrameRef *src, VSFrameRef *dst, const VSAPI *vsapi)
     const int width = vsapi->getFrameWidth(src, 0);
     const int height = vsapi->getFrameHeight(src, 0);
 
+#ifdef HAVE_ASM
+    tcomb_verticalBlur3_sse2(srcp, dstp, src_pitch, width, height);
+#else
     const uint8_t *srcpp = srcp - src_pitch;
     const uint8_t *srcpn = srcp + src_pitch;
 
@@ -620,6 +684,7 @@ void VerticalBlur3(const VSFrameRef *src, VSFrameRef *dst, const VSAPI *vsapi)
     }
     for (int x = 0; x < width; ++x)
         dstp[x] = (srcpp[x] + srcp[x] + 1) / 2;
+#endif
 }
 
 
