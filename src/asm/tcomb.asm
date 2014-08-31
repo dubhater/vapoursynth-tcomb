@@ -437,6 +437,6 @@ cglobal verticalBlur3_sse2, 5, 8, 8, srcp, dstp, stride, width, height, x, srcpp
     movdqa [dstpq + xq], xmm0
     add xq, 16
     cmp xq, widthq
-    jl .toploop
+    jl .bottomloop
 
     RET
