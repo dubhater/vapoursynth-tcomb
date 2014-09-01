@@ -69,7 +69,6 @@ typedef struct {
     int othreshc;
     int map;
     double scthresh;
-    int opt;
 
     int lc, start, stop;
     int64_t diffmaxsc;
@@ -1227,10 +1226,6 @@ static void VS_CC tcombCreate(const VSMap *in, VSMap *out, void *userData, VSCor
     if (err)
         d.scthresh = 12.0;
 
-    d.opt = vsapi->propGetInt(in, "opt", 0, &err);
-    if (err)
-        d.opt = 1;
-
 
     if (d.mode < 0 || d.mode > 2) {
         vsapi->setError(out, "TComb: mode must be 0, 1, or 2.");
@@ -1259,11 +1254,6 @@ static void VS_CC tcombCreate(const VSMap *in, VSMap *out, void *userData, VSCor
 
     if (d.scthresh > 100.0) {
         vsapi->setError(out, "TComb: scthresh must not be more than 100.");
-        return;
-    }
-
-    if (d.opt != 1) {
-        vsapi->setError(out, "TComb: opt must be 1.");
         return;
     }
 
@@ -1362,7 +1352,6 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegiste
                  "othreshl:int:opt;"
                  "othreshc:int:opt;"
                  "map:int:opt;"
-                 "scthresh:float:opt;"
-                 "opt:int:opt;",
+                 "scthresh:float:opt;",
                  tcombCreate, 0, plugin);
 }
