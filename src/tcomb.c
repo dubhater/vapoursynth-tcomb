@@ -1269,6 +1269,12 @@ static void VS_CC tcombCreate(const VSMap *in, VSMap *out, void *userData, VSCor
         return;
     }
 
+    if (d.vi->format->colorFamily == cmGray && d.mode > 0) {
+        vsapi->setError(out, "TComb: Mode must be 0 when input is Gray.");
+        vsapi->freeNode(d.node);
+        return;
+    }
+
     d.lc = d.mode == 2 ? 0x111 : (d.mode == 1 ? 0x110 : 0x1);
     d.start = 0;
     d.stop = 3;
