@@ -29,7 +29,7 @@ SECTION_TEXT
 
 
 INIT_XMM
-cglobal buildFinalMask_sse2, 8, 9, ?, s1p, s2p, m1p, dstp, stride, width, height, thresh, x
+cglobal buildFinalMask_sse2, 8, 9, 6, s1p, s2p, m1p, dstp, stride, width, height, thresh, x
     dec threshd
     movd xmm4, threshd
     punpcklbw xmm4, xmm4
