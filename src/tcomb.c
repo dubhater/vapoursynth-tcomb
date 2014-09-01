@@ -39,7 +39,7 @@
 
 #ifdef HAVE_ASM
 // Implemented in tcomb.asm
-extern void tcomb_buildFinalMask_sse2(const uint8_t *s1p, const uint8_t *s2p, const uint8_t *m1p, uint8_t *dstp, intptr_t stride, intptr_t width, intptr_t height, intptr_t thresh);
+extern void tcomb_buildFinalMask_sse2( const uint8_t *s1p, const uint8_t *s2p, const uint8_t *m1p, uint8_t *dstp, intptr_t stride, intptr_t width, intptr_t height, intptr_t thresh);
 extern void tcomb_absDiff_sse2( const uint8_t *srcp1, const uint8_t *srcp2, uint8_t *dstp, intptr_t stride, intptr_t width, intptr_t height);
 extern void tcomb_absDiffAndMinMask_sse2( const uint8_t *srcp1, const uint8_t *srcp2, uint8_t *dstp, intptr_t stride, intptr_t width, intptr_t height);
 extern void tcomb_absDiffAndMinMaskThresh_sse2( const uint8_t *srcp1, const uint8_t *srcp2, uint8_t *dstp, intptr_t stride, intptr_t width, intptr_t height, intptr_t thresh);
@@ -51,6 +51,10 @@ extern void tcomb_orAndMasks_sse2( const uint8_t *s1p, const uint8_t *s2p, uint8
 extern void tcomb_andMasks_sse2( const uint8_t *s1p, const uint8_t *s2p, uint8_t *dstp, intptr_t stride, intptr_t width, intptr_t height);
 extern void tcomb_checkSceneChange_sse2( const uint8_t *s1p, const uint8_t *s2p, intptr_t height, intptr_t width, intptr_t stride, int64_t *diffp);
 extern void tcomb_verticalBlur3_sse2( const uint8_t *srcp, uint8_t *dstp, intptr_t stride, intptr_t width, intptr_t height);
+extern void tcomb_andNeighborsInPlace_sse2( uint8_t *srcp, intptr_t width, intptr_t height, intptr_t stride);
+extern void tcomb_minMax_sse2( const uint8_t *srcp, uint8_t *minp, uint8_t *maxp, intptr_t width, intptr_t height, intptr_t src_stride, intptr_t min_stride, intptr_t thresh);
+extern void tcomb_horizontalBlur3_sse2( const uint8_t *srcp, uint8_t *dstp, intptr_t stride, intptr_t width, intptr_t height);
+extern void tcomb_horizontalBlur6_sse2( const uint8_t *srcp, uint8_t *dstp, intptr_t stride, intptr_t width, intptr_t height);
 #endif
 
 
@@ -117,6 +121,9 @@ void MinMax(const VSFrameRef *src, VSFrameRef *dmin, VSFrameRef *dmax, VSFrameRe
 
         const int thresh = b == 0 ? 2 : 8;
 
+#ifdef HAVE_ASM
+        tcomb_minMax_sse2(srcp, dminp, dmaxp, width, height, src_pitch, dmin_pitch, thresh);
+#else
         const uint8_t *srcpp = srcp - src_pitch;
         const uint8_t *srcpn = srcp + src_pitch;
 
@@ -137,6 +144,7 @@ void MinMax(const VSFrameRef *src, VSFrameRef *dmin, VSFrameRef *dmax, VSFrameRe
             dminp += dmin_pitch;
             dmaxp += dmax_pitch;
         }
+#endif
     }
 }
 
@@ -313,6 +321,25 @@ void andNeighborsInPlace(VSFrameRef *src, const VSAPI *vsapi)
     srcp += src_pitch;
     srcpn += src_pitch;
 
+#ifdef HAVE_ASM
+    const int widtha = (width % 16) ? ((width / 16) * 16) : width - 16;
+
+    tcomb_andNeighborsInPlace_sse2(srcp + 16, widtha - 16, height - 2, src_pitch);
+
+    for (int y = 1; y < height - 1; y++) {
+        srcp[0] &= (srcpp[0] | srcpp[1] | srcpn[0] | srcpn[1]);
+        for (int x = 1; x < 16; x++)
+            srcp[x] &= (srcpp[x - 1] | srcpp[x] | srcpp[x + 1] | srcpn[x - 1] | srcpn[x] | srcpn[x + 1]);
+
+        for (int x = widtha; x < width - 1; x++)
+            srcp[x] &= (srcpp[x - 1] | srcpp[x] | srcpp[x + 1] | srcpn[x - 1] | srcpn[x] | srcpn[x + 1]);
+        srcp[width - 1] &= (srcpp[width - 2] | srcpp[width - 1] | srcpn[width - 2] | srcpn[width - 1]);
+
+        srcpp += src_pitch;
+        srcp += src_pitch;
+        srcpn += src_pitch;
+    }
+#else
     for (int y = 1; y < height - 1; ++y) {
         srcp[0] &= (srcpp[0] | srcpp[1] | srcpn[0] | srcpn[1]);
         for (int x = 1; x < width - 1; ++x)
@@ -322,6 +349,7 @@ void andNeighborsInPlace(VSFrameRef *src, const VSAPI *vsapi)
         srcp += src_pitch;
         srcpn += src_pitch;
     }
+#endif
 
     srcp[0] &= (srcpp[0] | srcpp[1]);
     for (int x = 1; x < width - 1; ++x)
@@ -688,15 +716,7 @@ void VerticalBlur3(const VSFrameRef *src, VSFrameRef *dst, const VSAPI *vsapi)
 }
 
 
-void HorizontalBlur3(const VSFrameRef *src, VSFrameRef *dst, const VSAPI *vsapi)
-{
-    const uint8_t *srcp = vsapi->getReadPtr(src, 0);
-    uint8_t *dstp = vsapi->getWritePtr(dst, 0);
-    const int dst_pitch = vsapi->getStride(dst, 0);
-    const int src_pitch = vsapi->getStride(src, 0);
-    const int width = vsapi->getFrameWidth(src, 0);
-    const int height = vsapi->getFrameHeight(src, 0);
-
+inline void tcomb_horizontalBlur3_c( const uint8_t *srcp, uint8_t *dstp, int stride, int width, int height) {
     for (int y = 0; y < height; ++y) {
         dstp[0] = (srcp[0] + srcp[1] + 1) / 2;
 
@@ -705,8 +725,62 @@ void HorizontalBlur3(const VSFrameRef *src, VSFrameRef *dst, const VSAPI *vsapi)
 
         dstp[width - 1] = (srcp[width - 2] + srcp[width - 1] + 1) / 2;
 
-        srcp += src_pitch;
-        dstp += dst_pitch;
+        srcp += stride;
+        dstp += stride;
+    }
+}
+
+
+void HorizontalBlur3(const VSFrameRef *src, VSFrameRef *dst, const VSAPI *vsapi)
+{
+    const uint8_t *srcp = vsapi->getReadPtr(src, 0);
+    uint8_t *dstp = vsapi->getWritePtr(dst, 0);
+    const int stride = vsapi->getStride(src, 0);
+    const int width = vsapi->getFrameWidth(src, 0);
+    const int height = vsapi->getFrameHeight(src, 0);
+
+#ifdef HAVE_ASM
+    if (width >= 16) {
+        const int widtha = (width / 16) * 16;
+
+        tcomb_horizontalBlur3_sse2(srcp + 16, dstp + 16, stride, widtha - 32, height);
+
+        for (int y = 0; y < height; y++) {
+            dstp[0] = (srcp[0] + srcp[1] + 1) / 2;
+
+            for (int x = 1; x < 16; x++)
+                dstp[x] = (srcp[x - 1] + (srcp[x] * 2) + srcp[x + 1] + 2) / 4;
+
+            for (int x = widtha - 16; x < width - 1; x++)
+                dstp[x] = (srcp[x - 1] + (srcp[x] * 2) + srcp[x + 1] + 2) / 4;
+
+            dstp[width - 1] = (srcp[width - 2] + srcp[width - 1] + 1) / 2;
+
+            srcp += stride;
+            dstp += stride;
+        }
+    } else {
+        tcomb_horizontalBlur3_c(srcp, dstp, stride, width, height);
+    }
+#else
+    tcomb_horizontalBlur3_c(srcp, dstp, stride, width, height);
+#endif
+}
+
+
+inline void tcomb_horizontalBlur6_c( const uint8_t *srcp, uint8_t *dstp, int stride, int width, int height) {
+    for (int y = 0; y < height; ++y) {
+        dstp[0] = (srcp[0] * 6 + (srcp[1] * 8) + (srcp[2] * 2) + 8) / 16;
+        dstp[1] = (((srcp[0] + srcp[2]) * 4) + srcp[1] * 6 + (srcp[3] * 2) + 8) / 16;
+
+        for (int x = 2; x < width - 2; ++x)
+            dstp[x] = (srcp[x - 2] + ((srcp[x - 1] + srcp[x + 1]) * 4) + srcp[x] * 6 + srcp[x + 2] + 8) / 16;
+
+        dstp[width - 2] = ((srcp[width - 4] * 2) + ((srcp[width - 3] + srcp[width - 1]) * 4) + srcp[width - 2] * 6 + 8) / 16;
+        dstp[width - 1] = ((srcp[width - 3] * 2) + (srcp[width - 2] * 8) + srcp[width - 1] * 6 + 8) / 16;
+
+        srcp += stride;
+        dstp += stride;
     }
 }
 
@@ -715,21 +789,38 @@ void HorizontalBlur6(const VSFrameRef *src, VSFrameRef *dst, const VSAPI *vsapi)
 {
     const uint8_t *srcp = vsapi->getReadPtr(src, 0);
     uint8_t *dstp = vsapi->getWritePtr(dst, 0);
-    const int dst_pitch = vsapi->getStride(dst, 0);
-    const int src_pitch = vsapi->getStride(src, 0);
+    const int stride = vsapi->getStride(src, 0);
     const int width = vsapi->getFrameWidth(src, 0);
     const int height = vsapi->getFrameHeight(src, 0);
 
-    for (int y = 0; y < height; ++y) {
-        dstp[0] = (srcp[0] * 6 + (srcp[1] * 8) + (srcp[2] * 2) + 8) / 16;
-        dstp[1] = (((srcp[0] + srcp[2]) * 4) + srcp[1] * 6 + (srcp[3] * 2) + 8) / 16;
-        for (int x = 2; x < width - 2; ++x)
-            dstp[x] = (srcp[x - 2] + ((srcp[x - 1] + srcp[x + 1]) * 4) + srcp[x] * 6 + srcp[x + 2] + 8) / 16;
-        dstp[width - 2] = ((srcp[width - 4] * 2) + ((srcp[width - 3] + srcp[width - 1]) * 4) + srcp[width - 2] * 6 + 8) / 16;
-        dstp[width - 1] = ((srcp[width - 3] * 2) + (srcp[width - 2] * 8) + srcp[width - 1] * 6 + 8) / 16;
-        srcp += src_pitch;
-        dstp += dst_pitch;
+#ifdef HAVE_ASM
+    if (width >= 16) {
+        const int widtha = (width / 16) * 16;
+
+        tcomb_horizontalBlur6_sse2(srcp + 16, dstp + 16, stride, widtha - 32, height);
+
+        for (int y = 0; y < height; y++) {
+            dstp[0] = (srcp[0] * 6 + (srcp[1] * 8) + (srcp[2] * 2) + 8) / 16;
+            dstp[1] = (((srcp[0] + srcp[2]) * 4) + srcp[1] * 6 + (srcp[3] * 2) + 8) / 16;
+
+            for (int x = 2; x < 16; x++)
+                dstp[x] = (srcp[x - 2] + ((srcp[x - 1] + srcp[x + 1]) * 4) + srcp[x] * 6 + srcp[x + 2] + 8) / 16;
+
+            for (int x = widtha - 16; x < width - 2; x++)
+                dstp[x] = (srcp[x - 2] + ((srcp[x - 1] + srcp[x + 1]) * 4) + srcp[x] * 6 + srcp[x + 2] + 8) / 16;
+
+            dstp[width - 2] = ((srcp[width - 4] * 2) + ((srcp[width - 3] + srcp[width - 1]) * 4) + srcp[width - 2] * 6 + 8) / 16;
+            dstp[width - 1] = ((srcp[width - 3] * 2) + (srcp[width - 2] * 8) + srcp[width - 1] * 6 + 8) / 16;
+
+            srcp += stride;
+            dstp += stride;
+        }
+    } else {
+        tcomb_horizontalBlur6_c(srcp, dstp, stride, width, height);
     }
+#else
+    tcomb_horizontalBlur6_c(srcp, dstp, stride, width, height);
+#endif
 }
 
 

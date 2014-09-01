@@ -440,3 +440,220 @@ cglobal verticalBlur3_sse2, 5, 8, 8, srcp, dstp, stride, width, height, x, srcpp
     jl .bottomloop
 
     RET
+
+
+INIT_XMM
+cglobal andNeighborsInPlace_sse2, 4, 7, 3, srcp, width, height, stride, x, srcpp, srcnp
+    mov srcppq, srcpq
+    sub srcppq, strideq
+    mov srcnpq, srcpq
+    add srcnpq, strideq
+
+.yloop:
+    xor xq, xq
+.xloop:
+    movdqa xmm0, [srcppq + xq]
+    movdqu xmm1, [srcppq + xq - 1]
+    por xmm0, xmm1
+    movdqu xmm1, [srcppq + xq + 1]
+    por xmm0, xmm1
+    movdqa xmm1, [srcpq + xq]
+    movdqu xmm2, [srcnpq + xq - 1]
+    por xmm0, xmm2
+    por xmm0, [srcnpq + xq]
+    movdqu xmm2, [srcnpq + xq + 1]
+    por xmm0, xmm2
+    pand xmm0, xmm1
+    movdqa [srcpq + xq], xmm0
+    add xq, 16
+    cmp xq, widthq
+    jl .xloop
+
+    add srcppq, strideq
+    add srcpq, strideq
+    add srcnpq, strideq
+    dec heightq
+    jnz .yloop
+
+    RET
+
+
+INIT_XMM
+cglobal minMax_sse2, 8, 11, 4, srcp, minp, maxp, width, height, src_stride, min_stride, thresh, x, srcpp, srcnp
+    mov srcppq, srcpq
+    sub srcppq, src_strideq
+    mov srcnpq, srcpq
+    add srcnpq, src_strideq
+
+    movd xmm3, threshd
+    punpcklbw xmm3, xmm3
+    punpcklwd xmm3, xmm3
+    punpckldq xmm3, xmm3
+    punpcklqdq xmm3, xmm3
+
+.yloop:
+    xor xq, xq
+.xloop:
+    ; srcp - 1 is aligned because the pointer passed to this function is srcp + stride + 1.
+    movdqa xmm0, [srcppq + xq - 1]
+    movdqa xmm1, xmm0
+    movdqu xmm2, [srcppq + xq]
+    pminub xmm0, xmm2
+    pmaxub xmm1, xmm2
+    movdqu xmm2, [srcppq + xq + 1]
+    pminub xmm0, xmm2
+    pmaxub xmm1, xmm2
+    movdqa xmm2, [srcpq + xq - 1]
+    pminub xmm0, xmm2
+    pmaxub xmm1, xmm2
+    movdqu xmm2, [srcpq + xq]
+    pminub xmm0, xmm2
+    pmaxub xmm1, xmm2
+    movdqu xmm2, [srcpq + xq + 1]
+    pminub xmm0, xmm2
+    pmaxub xmm1, xmm2
+    movdqa xmm2, [srcnpq + xq - 1]
+    pminub xmm0, xmm2
+    pmaxub xmm1, xmm2
+    movdqu xmm2, [srcnpq + xq]
+    pminub xmm0, xmm2
+    pmaxub xmm1, xmm2
+    movdqu xmm2, [srcnpq + xq + 1]
+    pminub xmm0, xmm2
+    pmaxub xmm1, xmm2
+    psubusb xmm0, xmm3
+    paddusb xmm1, xmm3
+    movdqa [minpq + xq], xmm0
+    movdqa [maxpq + xq], xmm1
+    add xq, 16
+    cmp xq, widthq
+    jl .xloop
+
+    add srcppq, src_strideq
+    add srcpq, src_strideq
+    add srcnpq, src_strideq
+    add minpq, min_strideq
+    add maxpq, min_strideq
+    dec heightq
+    jnz .yloop
+
+    RET
+
+
+INIT_XMM
+cglobal horizontalBlur3_sse2, 5, 6, 8, srcp, dstp, stride, width, height, x
+    pxor xmm7, xmm7
+
+    pcmpeqb xmm6, xmm6
+    psrlw xmm6, 15
+    psllw xmm6, 1
+
+.yloop:
+    xor xq, xq
+.xloop:
+    movdqu xmm0, [srcpq + xq - 1]
+    movdqa xmm1, [srcpq + xq]
+    movdqu xmm2, [srcpq + xq + 1]
+    movdqa xmm3, xmm0
+    movdqa xmm4, xmm1
+    movdqa xmm5, xmm2
+    punpcklbw xmm0, xmm7
+    punpcklbw xmm1, xmm7
+    punpcklbw xmm2, xmm7
+    punpckhbw xmm3, xmm7
+    punpckhbw xmm4, xmm7
+    punpckhbw xmm5, xmm7
+    psllw xmm1, 1
+    psllw xmm4, 1
+    paddw xmm1, xmm0
+    paddw xmm4, xmm3
+    paddw xmm1, xmm2
+    paddw xmm4, xmm5
+    psrlw xmm1, 2
+    psrlw xmm4, 2
+    packuswb xmm1, xmm4
+    movdqa [dstpq + xq], xmm1
+    add xq, 16
+    cmp xq, widthq
+    jl .xloop
+
+    add srcpq, strideq
+    add dstpq, strideq
+    dec heightq
+    jnz .yloop
+
+    RET
+
+
+INIT_XMM
+cglobal horizontalBlur6_sse2, 5, 6, 13, srcp, dstp, stride, width, height, x
+    pxor xmm12, xmm12
+
+    ; 0x0006
+    pcmpeqb xmm11, xmm11
+    psrlw xmm14, 14
+    psllw xmm14, 1
+
+    ; 0x0008
+    pcmpeqb xmm10, xmm10
+    psrlw xmm13, 15
+    psllw xmm13, 3
+
+.yloop:
+    xor xq, xq
+.xloop:
+    movdqu xmm0, [srcpq + xq - 2]
+    movdqu xmm1, [srcpq + xq - 1]
+    movdqa xmm2, [srcpq + xq]
+    movdqu xmm3, [srcpq + xq + 1]
+    movdqu xmm4, [srcpq + xq + 2]
+    movdqa xmm5, xmm0
+    movdqa xmm6, xmm1
+    movdqa xmm7, xmm2
+    movdqa xmm8, xmm3
+    movdqa xmm9, xmm4
+    punpcklbw xmm0, xmm12
+    punpcklbw xmm1, xmm12
+    punpcklbw xmm2, xmm12
+    punpcklbw xmm3, xmm12
+    punpcklbw xmm4, xmm12
+    punpckhbw xmm5, xmm12
+    punpckhbw xmm6, xmm12
+    punpckhbw xmm7, xmm12
+    punpckhbw xmm8, xmm12
+    punpckhbw xmm9, xmm12
+    ; srcp[x-2] + srcp[x+2]
+    paddw xmm0, xmm4
+    paddw xmm5, xmm9
+    ; srcp[x-1] + srcp[x+1]
+    paddw xmm1, xmm3
+    paddw xmm6, xmm8
+    ; (srcp[x-1 + srcp[x+])*4
+    psllw xmm1, 2
+    psllw xmm6, 2
+    ; (srcp[x-1 + srcp[x+])*4 + srcp[x-2] + srcp[x+2]
+    paddw xmm0, xmm1
+    paddw xmm5, xmm6
+    ; srcp[x] * 6
+    pmullw xmm2, xmm11
+    pmullw xmm7, xmm11
+    paddw xmm0, xmm2
+    paddw xmm5, xmm7
+    ; add 8
+    paddw xmm0, xmm10
+    paddw xmm5, xmm10
+    ; divide by 16
+    psrlw xmm0, 4
+    psrlw xmm5, 4
+    packuswb xmm0, xmm5
+    movdqa [dstpq + xq], xmm0
+    add xq, 16
+    cmp xq, widthq
+    jl .xloop
+
+    add srcpq, strideq
+    add dstpq, strideq
+    dec heightq
+    jnz .yloop
+
+    RET
