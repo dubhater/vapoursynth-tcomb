@@ -76,7 +76,7 @@ typedef struct {
 
 
 
-void copyPad(const VSFrameRef *src, VSFrameRef *dst, TCombData *d, const VSAPI *vsapi)
+static void copyPad(const VSFrameRef *src, VSFrameRef *dst, TCombData *d, const VSAPI *vsapi)
 {
     for (int b = d->start; b < d->stop; ++b) {
         int pitch = vsapi->getStride(dst, b);
@@ -104,7 +104,7 @@ void copyPad(const VSFrameRef *src, VSFrameRef *dst, TCombData *d, const VSAPI *
 }
 
 
-void MinMax(const VSFrameRef *src, VSFrameRef *dmin, VSFrameRef *dmax, VSFrameRef *pad, TCombData *d, const VSAPI *vsapi)
+static void MinMax(const VSFrameRef *src, VSFrameRef *dmin, VSFrameRef *dmax, VSFrameRef *pad, TCombData *d, const VSAPI *vsapi)
 {
     copyPad(src, pad, d, vsapi);
 
@@ -147,7 +147,7 @@ void MinMax(const VSFrameRef *src, VSFrameRef *dmin, VSFrameRef *dmax, VSFrameRe
 }
 
 
-void buildFinalFrame(const VSFrameRef *p2, const VSFrameRef *p1, const VSFrameRef *src,
+static void buildFinalFrame(const VSFrameRef *p2, const VSFrameRef *p1, const VSFrameRef *src,
         const VSFrameRef *n1, const VSFrameRef *n2, const VSFrameRef *m1, const VSFrameRef *m2, const VSFrameRef *m3,
         VSFrameRef *dst, VSFrameRef *min, VSFrameRef *max, VSFrameRef *pad, TCombData *d, const VSAPI *vsapi)
 {
@@ -265,7 +265,7 @@ void buildFinalFrame(const VSFrameRef *p2, const VSFrameRef *p1, const VSFrameRe
 }
 
 
-void buildFinalMask(const VSFrameRef *s1, const VSFrameRef *s2, const VSFrameRef *m1,
+static void buildFinalMask(const VSFrameRef *s1, const VSFrameRef *s2, const VSFrameRef *m1,
         VSFrameRef *dst, TCombData *d, const VSAPI *vsapi)
 {
     for (int b = d->start; b < d->stop; ++b) {
@@ -299,7 +299,7 @@ void buildFinalMask(const VSFrameRef *s1, const VSFrameRef *s2, const VSFrameRef
 }
 
 
-void andNeighborsInPlace(VSFrameRef *src, const VSAPI *vsapi)
+static void andNeighborsInPlace(VSFrameRef *src, const VSAPI *vsapi)
 {
     uint8_t *srcp = vsapi->getWritePtr(src, 0);
     const int height = vsapi->getFrameHeight(src, 0);
@@ -353,7 +353,7 @@ void andNeighborsInPlace(VSFrameRef *src, const VSAPI *vsapi)
 }
 
 
-void absDiff(const VSFrameRef *src1, const VSFrameRef *src2, VSFrameRef *dst, const VSAPI *vsapi)
+static void absDiff(const VSFrameRef *src1, const VSFrameRef *src2, VSFrameRef *dst, const VSAPI *vsapi)
 {
     const uint8_t *srcp1 = vsapi->getReadPtr(src1, 0);
     const uint8_t *srcp2 = vsapi->getReadPtr(src2, 0);
@@ -377,7 +377,7 @@ void absDiff(const VSFrameRef *src1, const VSFrameRef *src2, VSFrameRef *dst, co
 }
 
 
-void absDiffAndMinMask(const VSFrameRef *src1, const VSFrameRef *src2, VSFrameRef *dst, const VSAPI *vsapi)
+static void absDiffAndMinMask(const VSFrameRef *src1, const VSFrameRef *src2, VSFrameRef *dst, const VSAPI *vsapi)
 {
     const uint8_t *srcp1 = vsapi->getReadPtr(src1, 0);
     const uint8_t *srcp2 = vsapi->getReadPtr(src2, 0);
@@ -403,7 +403,7 @@ void absDiffAndMinMask(const VSFrameRef *src1, const VSFrameRef *src2, VSFrameRe
 }
 
 
-void absDiffAndMinMaskThresh(const VSFrameRef *src1, const VSFrameRef *src2, VSFrameRef *dst,
+static void absDiffAndMinMaskThresh(const VSFrameRef *src1, const VSFrameRef *src2, VSFrameRef *dst,
         TCombData *d, const VSAPI *vsapi)
 {
     const uint8_t *srcp1 = vsapi->getReadPtr(src1, 0);
@@ -436,7 +436,7 @@ void absDiffAndMinMaskThresh(const VSFrameRef *src1, const VSFrameRef *src2, VSF
 }
 
 
-void checkOscillation5(const VSFrameRef *p2, const VSFrameRef *p1, const VSFrameRef *s1,
+static void checkOscillation5(const VSFrameRef *p2, const VSFrameRef *p1, const VSFrameRef *s1,
         const VSFrameRef *n1, const VSFrameRef *n2, VSFrameRef *dst, TCombData *d, const VSAPI *vsapi)
 {
     for (int b = d->start; b < d->stop; ++b) {
@@ -479,7 +479,7 @@ void checkOscillation5(const VSFrameRef *p2, const VSFrameRef *p1, const VSFrame
 }
 
 
-void calcAverages(const VSFrameRef *s1, const VSFrameRef *s2, VSFrameRef *dst, TCombData *d, const VSAPI *vsapi)
+static void calcAverages(const VSFrameRef *s1, const VSFrameRef *s2, VSFrameRef *dst, TCombData *d, const VSAPI *vsapi)
 {
     for (int b = d->start; b < d->stop; ++b) {
         const uint8_t *s1p = vsapi->getReadPtr(s1, b);
@@ -504,7 +504,7 @@ void calcAverages(const VSFrameRef *s1, const VSFrameRef *s2, VSFrameRef *dst, T
 }
 
 
-void checkAvgOscCorrelation(const VSFrameRef *s1, const VSFrameRef *s2, const VSFrameRef *s3,
+static void checkAvgOscCorrelation(const VSFrameRef *s1, const VSFrameRef *s2, const VSFrameRef *s3,
         const VSFrameRef *s4, VSFrameRef *dst, TCombData *d, const VSAPI *vsapi)
 {
     for (int b = d->start; b < d->stop; ++b) {
@@ -539,7 +539,7 @@ void checkAvgOscCorrelation(const VSFrameRef *s1, const VSFrameRef *s2, const VS
 }
 
 
-void or3Masks(const VSFrameRef *s1, const VSFrameRef *s2, const VSFrameRef *s3,
+static void or3Masks(const VSFrameRef *s1, const VSFrameRef *s2, const VSFrameRef *s3,
         VSFrameRef *dst, const VSAPI *vsapi)
 {
     for (int b = 1; b < 3; ++b) {
@@ -568,7 +568,7 @@ void or3Masks(const VSFrameRef *s1, const VSFrameRef *s2, const VSFrameRef *s3,
 }
 
 
-void orAndMasks(const VSFrameRef *s1, const VSFrameRef *s2, VSFrameRef *dst, const VSAPI *vsapi)
+static void orAndMasks(const VSFrameRef *s1, const VSFrameRef *s2, VSFrameRef *dst, const VSAPI *vsapi)
 {
     const uint8_t *s1p = vsapi->getReadPtr(s1, 0);
     const int stride = vsapi->getStride(s1, 0);
@@ -592,7 +592,7 @@ void orAndMasks(const VSFrameRef *s1, const VSFrameRef *s2, VSFrameRef *dst, con
 }
 
 
-void andMasks(const VSFrameRef *s1, const VSFrameRef *s2, VSFrameRef *dst, const VSAPI *vsapi)
+static void andMasks(const VSFrameRef *s1, const VSFrameRef *s2, VSFrameRef *dst, const VSAPI *vsapi)
 {
     const uint8_t *s1p = vsapi->getReadPtr(s1, 0);
     const int stride = vsapi->getStride(s1, 0);
@@ -616,7 +616,7 @@ void andMasks(const VSFrameRef *s1, const VSFrameRef *s2, VSFrameRef *dst, const
 }
 
 
-int checkSceneChange(const VSFrameRef *s1, const VSFrameRef *s2, TCombData *d, const VSAPI *vsapi)
+static int checkSceneChange(const VSFrameRef *s1, const VSFrameRef *s2, TCombData *d, const VSAPI *vsapi)
 {
     if (d->scthresh < 0.0)
         return 0;
@@ -651,7 +651,7 @@ int checkSceneChange(const VSFrameRef *s1, const VSFrameRef *s2, TCombData *d, c
 }
 
 
-void VerticalBlur3(const VSFrameRef *src, VSFrameRef *dst, const VSAPI *vsapi)
+static void VerticalBlur3(const VSFrameRef *src, VSFrameRef *dst, const VSAPI *vsapi)
 {
     const uint8_t *srcp = vsapi->getReadPtr(src, 0);
     uint8_t *dstp = vsapi->getWritePtr(dst, 0);
@@ -685,7 +685,7 @@ void VerticalBlur3(const VSFrameRef *src, VSFrameRef *dst, const VSAPI *vsapi)
 }
 
 
-inline void tcomb_horizontalBlur3_c( const uint8_t *srcp, uint8_t *dstp, int stride, int width, int height) {
+static inline void tcomb_horizontalBlur3_c( const uint8_t *srcp, uint8_t *dstp, int stride, int width, int height) {
     for (int y = 0; y < height; ++y) {
         dstp[0] = (srcp[0] + srcp[1] + 1) / 2;
 
@@ -700,7 +700,7 @@ inline void tcomb_horizontalBlur3_c( const uint8_t *srcp, uint8_t *dstp, int str
 }
 
 
-void HorizontalBlur3(const VSFrameRef *src, VSFrameRef *dst, const VSAPI *vsapi)
+static void HorizontalBlur3(const VSFrameRef *src, VSFrameRef *dst, const VSAPI *vsapi)
 {
     const uint8_t *srcp = vsapi->getReadPtr(src, 0);
     uint8_t *dstp = vsapi->getWritePtr(dst, 0);
@@ -737,7 +737,7 @@ void HorizontalBlur3(const VSFrameRef *src, VSFrameRef *dst, const VSAPI *vsapi)
 }
 
 
-inline void tcomb_horizontalBlur6_c( const uint8_t *srcp, uint8_t *dstp, int stride, int width, int height) {
+static inline void tcomb_horizontalBlur6_c( const uint8_t *srcp, uint8_t *dstp, int stride, int width, int height) {
     for (int y = 0; y < height; ++y) {
         dstp[0] = (srcp[0] * 6 + (srcp[1] * 8) + (srcp[2] * 2) + 8) / 16;
         dstp[1] = (((srcp[0] + srcp[2]) * 4) + srcp[1] * 6 + (srcp[3] * 2) + 8) / 16;
@@ -754,7 +754,7 @@ inline void tcomb_horizontalBlur6_c( const uint8_t *srcp, uint8_t *dstp, int str
 }
 
 
-void HorizontalBlur6(const VSFrameRef *src, VSFrameRef *dst, const VSAPI *vsapi)
+static void HorizontalBlur6(const VSFrameRef *src, VSFrameRef *dst, const VSAPI *vsapi)
 {
     const uint8_t *srcp = vsapi->getReadPtr(src, 0);
     uint8_t *dstp = vsapi->getWritePtr(dst, 0);
@@ -793,7 +793,7 @@ void HorizontalBlur6(const VSFrameRef *src, VSFrameRef *dst, const VSAPI *vsapi)
 }
 
 
-void getStartStop(int lc, int *start, int *stop)
+static void getStartStop(int lc, int *start, int *stop)
 {
     switch (lc) {
         case 0x0:
