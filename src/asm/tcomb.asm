@@ -590,6 +590,8 @@ cglobal horizontalBlur3_sse2, 5, 6, 8, srcp, dstp, stride, width, height, x
     paddw xmm4, xmm3
     paddw xmm1, xmm2
     paddw xmm4, xmm5
+    paddw xmm1, xmm6
+    paddw xmm4, xmm6
     psrlw xmm1, 2
     psrlw xmm4, 2
     packuswb xmm1, xmm4
