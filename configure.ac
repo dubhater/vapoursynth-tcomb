@@ -1,6 +1,6 @@
 AC_INIT([tcomb], [3], [https://github.com/dubhater/vapoursynth-tcomb/issues], [tcomb], [https://github.com/dubhater/vapoursynth-tcomb/])
 
-: ${CFLAGS="-O2"}
+: ${CFLAGS=""}
 
 AM_INIT_AUTOMAKE([foreign no-dist-gzip dist-xz subdir-objects no-define])
 AM_SILENT_RULES([yes])
@@ -9,62 +9,44 @@ LT_INIT([disable-static win32-dll])
 
 AC_CANONICAL_HOST
 
-AC_PROG_CC_C99
+AC_PROG_CC
 
-AS_IF(
-   [test "x$host_cpu" = "xx86_64"],
-   [AC_CHECK_PROGS([YASM], [yasm]) AC_DEFINE([HAVE_ASM])],
-   [YASM="dummy"]
-)
 
-AM_CONDITIONAL([x86_64], [test "x$host_cpu" = "xx86_64"])
-
-AS_IF(
-   [test "x$YASM" = "x"],
-   [AC_MSG_ERROR([yasm required but not found])],
-   [AS="$YASM"]
-)
+X86="false"
 
 AS_CASE(
   [$host_cpu],
-  [i?86],   [BITS="32"],
-  [x86_64], [BITS="64" ASFLAGS="$ASFLAGS -DARCH_X86_64=1 -DPIC -Dprivate_prefix=tcomb"],
+  [i?86],   [BITS="32" X86="true"],
+  [x86_64], [BITS="64" X86="true"],
   []
 )
 
 AS_CASE(
    [$host_os],
-   [darwin*],
+   [cygwin*|mingw*],
    [
-      ASFLAGS="$ASFLAGS -f macho$BITS -DPREFIX"
-   ],
-   [*linux*],
-   [
-      ASFLAGS="$ASFLAGS -f elf$BITS"
-   ],
-   [gnu*],
-   [
-      ASFLAGS="$ASFLAGS -f elf$BITS"
-   ],
-   [cygwin*],
-   [
-      ASFLAGS="$ASFLAGS -f win$BITS"
       AS_IF(
          [test "x$BITS" = "x32"],
-         [LDFLAGS="-Wl,--kill-at"]
+         [
+          AC_SUBST([PLUGINLDFLAGS], ["-Wl,--kill-at"])
+          AC_SUBST([STACKREALIGN], ["-mstackrealign"])
+         ]
       )
-   ],
-   [mingw*],
-   [
-      ASFLAGS="$ASFLAGS -f win$BITS"
-      AS_IF(
-         [test "x$BITS" = "x32"],
-         [LDFLAGS="-Wl,--kill-at"]
-      )
-   ],
-   [AC_MSG_ERROR([Unknown host OS])]
+   ]
 )
-AC_SUBST([ASFLAGS])
+
+
+AS_IF(
+      [test "x$X86" = "xtrue"],
+      [
+       AC_DEFINE([TCOMB_X86])
+
+       AC_SUBST([MFLAGS], ["-mfpmath=sse -msse2"])
+      ]
+)
+
+AM_CONDITIONAL([TCOMB_X86], [test "x$X86" = "xtrue"])
+
 
 PKG_CHECK_MODULES([VapourSynth], [vapoursynth])
 
