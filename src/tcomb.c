@@ -58,6 +58,13 @@ extern void horizontalBlur6_sse2( const uint8_t *srcp, uint8_t *dstp, intptr_t s
 #endif
 
 
+enum TCombModes {
+    LumaOnly = 0,
+    ChromaOnly,
+    LumaAndChroma
+};
+
+
 typedef struct {
     VSNodeRef *node;
     const VSVideoInfo *vi;
@@ -70,7 +77,7 @@ typedef struct {
     int map;
     double scthresh;
 
-    int lc, start, stop;
+    int start, stop;
     int64_t diffmaxsc;
 } TCombData;
 
@@ -793,37 +800,6 @@ static void HorizontalBlur6(const VSFrameRef *src, VSFrameRef *dst, const VSAPI 
 }
 
 
-static void getStartStop(int lc, int *start, int *stop)
-{
-    switch (lc) {
-        case 0x0:
-            *stop = 0;
-            return;
-        case 0x1:
-            *stop = 1;
-            return;
-        case 0x10:
-            *start = 1;
-            *stop = 2;
-            return;
-        case 0x11:
-            *stop = 2;
-            return;
-        case 0x100:
-            *start = 2;
-            return;
-        case 0x110:
-            *start = 1;
-            return;
-        case 0x101:
-        case 0x111:
-            return;
-        default:
-            return;
-    }
-}
-
-
 static void VS_CC tcombInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
     TCombData *d = (TCombData *) * instanceData;
 
@@ -847,7 +823,7 @@ static const VSFrameRef *VS_CC tcombStage1GetFrame(int n, int activationReason, 
         int sc = checkSceneChange(cur, prev, d, vsapi);
         vsapi->propSetInt(props, "tcomb_sc", sc, paReplace);
 
-        if (d->lc & 0x1) {
+        if (d->mode == LumaOnly || d->mode == LumaAndChroma) {
             VSFrameRef *blurred[6];
             for (int i = 0; i < 6; i++)
                 blurred[i] = vsapi->newVideoFrame(d->vi->format, d->vi->width, d->vi->height, NULL, core);
@@ -888,7 +864,7 @@ static const VSFrameRef *VS_CC tcombStage2GetFrame(int n, int activationReason, 
         VSFrameRef *dst = vsapi->copyFrame(cur, core);
         VSMap *props = vsapi->getFramePropsRW(dst);
 
-        if (d->mode == 0 || d->mode == 2) {
+        if (d->mode == LumaOnly || d->mode == LumaAndChroma) {
             const VSMap *prev_props = vsapi->getFramePropsRO(prev);
             const VSMap *cur_props = vsapi->getFramePropsRO(cur);
 
@@ -1009,7 +985,7 @@ static const VSFrameRef *VS_CC tcombStage4GetFrame(int n, int activationReason, 
 
         for (int i = 1; i <= 2; i++) {
             sc[i] = vsapi->propGetInt(src_props[i], "tcomb_sc", 0, NULL);
-            if (d->lc & 0x1)
+            if (d->mode == LumaOnly || d->mode == LumaAndChroma)
                 msk1[i] = vsapi->propGetFrame(src_props[i], "tcomb_msk1", 0, NULL);
         }
 
@@ -1020,7 +996,7 @@ static const VSFrameRef *VS_CC tcombStage4GetFrame(int n, int activationReason, 
             for (int i = 0; i < d->vi->format->numPlanes; i++)
                 memset(vsapi->getWritePtr(msk2, i), 0, vsapi->getStride(msk2, i) * vsapi->getFrameHeight(msk2, i));
         } else {
-            if (d->lc & 0x1) { // if processing luma
+            if (d->mode == LumaOnly || d->mode == LumaAndChroma) {
                 andMasks(omsk[1], omsk[2], tmp, vsapi);
 
                 for (int i = 2; i < 5; i++)
@@ -1030,7 +1006,7 @@ static const VSFrameRef *VS_CC tcombStage4GetFrame(int n, int activationReason, 
 
                 orAndMasks(msk1[1], msk1[2], tmp, vsapi);
             }
-            if (d->lc & 0x110) { // if processing chroma
+            if (d->mode == ChromaOnly || d->mode == LumaAndChroma) {
                 or3Masks(omsk[2], omsk[3], omsk[4], tmp, vsapi);
             }
             buildFinalMask(src[0], src[2], tmp, msk2, d, vsapi);
@@ -1203,7 +1179,7 @@ static void VS_CC tcombCreate(const VSMap *in, VSMap *out, void *userData, VSCor
 
     d.mode = vsapi->propGetInt(in, "mode", 0, &err);
     if (err)
-        d.mode = 2;
+        d.mode = LumaAndChroma;
 
     d.fthreshl = vsapi->propGetInt(in, "fthreshl", 0, &err);
     if (err)
@@ -1228,7 +1204,7 @@ static void VS_CC tcombCreate(const VSMap *in, VSMap *out, void *userData, VSCor
         d.scthresh = 12.0;
 
 
-    if (d.mode < 0 || d.mode > 2) {
+    if (d.mode < LumaOnly || d.mode > LumaAndChroma) {
         vsapi->setError(out, "TComb: mode must be 0, 1, or 2.");
         return;
     }
@@ -1270,16 +1246,19 @@ static void VS_CC tcombCreate(const VSMap *in, VSMap *out, void *userData, VSCor
         return;
     }
 
-    if (d.vi->format->colorFamily == cmGray && d.mode > 0) {
+    if (d.vi->format->colorFamily == cmGray && d.mode > LumaOnly) {
         vsapi->setError(out, "TComb: Mode must be 0 when input is Gray.");
         vsapi->freeNode(d.node);
         return;
     }
 
-    d.lc = d.mode == 2 ? 0x111 : (d.mode == 1 ? 0x110 : 0x1);
     d.start = 0;
     d.stop = 3;
-    getStartStop(d.lc, &d.start, &d.stop);
+
+    if (d.mode == LumaOnly)
+        d.stop = 1;
+    if (d.mode == ChromaOnly)
+        d.start = 1;
 
     VSPlugin *stdPlugin = vsapi->getPluginById("com.vapoursynth.std", core);
 
