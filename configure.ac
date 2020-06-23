@@ -1,4 +1,4 @@
-AC_INIT([tcomb], [3], [https://github.com/dubhater/vapoursynth-tcomb/issues], [tcomb], [https://github.com/dubhater/vapoursynth-tcomb/])
+AC_INIT([tcomb], [4], [https://github.com/dubhater/vapoursynth-tcomb/issues], [tcomb], [https://github.com/dubhater/vapoursynth-tcomb/])
 
 : ${CFLAGS=""}
 
