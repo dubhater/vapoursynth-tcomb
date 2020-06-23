@@ -73,6 +73,13 @@ Compilation
 
 ::
 
+   meson build
+   ninja -C build
+   
+Or:
+
+::
+
    ./autogen.sh
    ./configure
    make
