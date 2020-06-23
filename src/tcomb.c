@@ -998,7 +998,7 @@ static const VSFrameRef *VS_CC tcombStage4GetFrame(int n, int activationReason, 
 
         int sc[6];
         const VSFrameRef *omsk[6];
-        const VSFrameRef *msk1[6];
+        const VSFrameRef *msk1[6] = { 0 };
 
         const VSMap *src_props[6];
 
@@ -1009,7 +1009,8 @@ static const VSFrameRef *VS_CC tcombStage4GetFrame(int n, int activationReason, 
 
         for (int i = 1; i <= 2; i++) {
             sc[i] = vsapi->propGetInt(src_props[i], "tcomb_sc", 0, NULL);
-            msk1[i] = vsapi->propGetFrame(src_props[i], "tcomb_msk1", 0, NULL);
+            if (d->lc & 0x1)
+                msk1[i] = vsapi->propGetFrame(src_props[i], "tcomb_msk1", 0, NULL);
         }
 
         VSFrameRef *msk2 = vsapi->newVideoFrame(d->vi->format, d->vi->width, d->vi->height, NULL, core);    
